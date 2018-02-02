@@ -15,9 +15,23 @@ import CoreLocation
 class ViewController: UIViewController, CLLocationManagerDelegate {
     @IBOutlet weak var billLabel: UILabel!
     @IBOutlet weak var decimalButton: UIButton!
+    @IBOutlet weak var popUp: UIView!
+    @IBOutlet weak var roundUpButton: UIButton!
     
+    @IBOutlet weak var alertLabel: UILabel!
+    @IBOutlet weak var darkLayer: UIView!
     @IBOutlet weak var clearButton: UIButton!
     
+    @IBOutlet weak var percentageLabel: UILabel!
+    @IBOutlet weak var flagLabel: UILabel!
+    @IBOutlet weak var tipLabel: UILabel!
+    @IBOutlet weak var totalLabel: UILabel!
+    
+    var rounded: Bool = false
+    var tip: Double = 0;
+    var tot: Double = 0;
+    
+    @IBOutlet weak var popUpBottomConst: NSLayoutConstraint!
     let LOCATION_DATABASE_URL = "http://api.openweathermap.org/data/2.5/weather"
     let APP_ID = "7e4baeafe623717fddbfa94c3b2d991d"
     
@@ -25,15 +39,20 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
     var currentNumber: Double = 0
     var placesAfterDecimal = 0
     var decimalPressed = false
-    var tipData = TipDataModel()
+    var currentCountry: String = "US"
     
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        //getLocation()
+        getLocation()
+        alertLabel.isHidden = true
+        popUpBottomConst.constant = -325
+        darkLayer.isHidden = true
+        popUp.layer.shadowOpacity = 1
+        popUp.layer.shadowRadius = 6
         billLabel.text = "0"
         clearButton.isHidden = true
-        // Do any additional setup after loading the view, typically from a nib.
+        
     }
     
     override func didReceiveMemoryWarning() {
@@ -83,31 +102,30 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
             alert.addAction(okAction)
             present(alert, animated: true, completion: nil)
         } else {
-            updateTipDataModel(updateAll: true)
-            let country = tipData.country
-            let flagEmoji = countryCodeToFlag(country: country)
-            var total = tipData.total
-            var tipAmount = tipData.tipAmmout
-            if tipData.tipPercentage == 0 {
-                showDontTipInCountryAlert(billAmount: tipData.billAmount, flagEmoji: flagEmoji)
-            } else {
-                var qualityMessage = "Seems like service was not great and was not too bad either."
-                if sender.tag == 1 {
-                    qualityMessage = "Seems like service was not amazing."
-                    tipData.tipPercentage -= 0.03
-                } else if sender.tag == 3 {
-                    qualityMessage = "Seems like service was amazing!"
-                    tipData.tipPercentage += 0.03
-                }
-                updateTipDataModel(updateAll: false)
-                total = tipData.total
-                tipAmount = tipData.tipAmmout
-                let totalWith2Decimal = "\(String(format: "%.2f", total))"
-                let tipWith2Decimal = "\(String(format: "%.2f", tipAmount))"
-                showTotalAndTipAlert(total: totalWith2Decimal, tip: tipWith2Decimal, flagEmoji: flagEmoji, message: qualityMessage)
-            }
+            let data = TipDataModel(currentCountry: currentCountry, enteredBillAmount: currentNumber)
+            let quality = sender.tag
+            data.getTipPercentage(quality: quality!)
+            data.getTipAmount()
+            data.getTotal()
+            let tipPercentage = Int(data.tipPercentage * 100)
+            let tipAmount = data.tipAmmout
+            tip = tipAmount
+            let total = data.total
+            tot = total
+            let alert = data.alert
+            let flagEmoji = countryCodeToFlag(country: currentCountry)
+//            showTotalAndTipAlert(total: String(total) , tip: String(tipAmount), flagEmoji: flagEmoji, message: "")
+            showPopUp(flag: flagEmoji, tipPercentage: tipPercentage,tipAmount: tipAmount, total: total, alert: alert)
+            data.clear()
         }
     }
+    
+    @IBAction func closePopUp(_ sender: Any) {
+        hidePopUp()
+        rounded = false
+    }
+    
+    
     
     
     func updateCurrentNumber(_ decimalPressed: Bool, pressedNumber: Int) {
@@ -166,7 +184,6 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
         Alamofire.request(url, method: .get, parameters: parameters).responseJSON {
             response in
             if response.result.isSuccess {
-                print(response.result.value!)
                 print("Success! Got the country")
                 let countryJSON: JSON = JSON(response.result.value!)
                 self.updateCountryData(json: countryJSON)
@@ -181,8 +198,7 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
     /***************************************************************/
     func updateCountryData(json: JSON) {
         if let country = json["sys"]["country"].string {
-            print(country)
-            tipData.country = country
+            currentCountry = country
         } else {
             showConnectionIssueAlert()
         }
@@ -206,17 +222,58 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
         return String(usv)
     }
     
-    func updateTipDataModel(updateAll: Bool) {
-        if updateAll {
-            tipData.billAmount = currentNumber
-            tipData.getTipPercentage()
-            tipData.getTipAmount()
-            tipData.getTotal()
-        } else {
-            tipData.getTipAmount()
-            tipData.getTotal()
+//    func updateTipDataModel(updateAll: Bool) {
+//        if updateAll {
+//            tipData.billAmount = currentNumber
+//            tipData.getTipPercentage()
+//            tipData.getTipAmount()
+//            tipData.getTotal()
+//        } else {
+//            tipData.getTipAmount()
+//            tipData.getTotal()
+//        }
+//    }
+    
+    func showPopUp(flag: String, tipPercentage: Int ,tipAmount: Double, total: Double, alert: Bool){
+        if alert {
+            alertLabel.isHidden = false
         }
+        flagLabel.text = flag
+        percentageLabel.text = "(%\(tipPercentage))"
+        tipLabel.text = String(format: "%.2f", tipAmount)
+        totalLabel.text = String(format: "%.2f", total)
+        popUpBottomConst.constant = -20
+        darkLayer.isHidden = false
+        UIView.animate(withDuration: 0.3, animations: {
+            self.view.layoutIfNeeded()
+        })
     }
+    
+    @IBAction func roundTotalPressed(_ sender: Any) {
+        if(!rounded){
+            let roundedTotal = tot.rounded(.up)
+            let change = roundedTotal - tot
+            let newTip = tip + change
+            tipLabel.text = String(format: "%.2f", newTip)
+            totalLabel.text = String(format: "%.2f", roundedTotal)
+            roundUpButton.setTitle("Undo", for: .normal)
+        } else {
+            tipLabel.text = String(format: "%.2f", tip)
+            totalLabel.text = String(format: "%.2f", tot)
+            roundUpButton.setTitle("Round total", for: .normal)
+        }
+        rounded = !rounded
+    }
+    
+    func hidePopUp(){
+        popUpBottomConst.constant = -325
+        darkLayer.isHidden = true
+        alertLabel.isHidden = true
+        UIView.animate(withDuration: 0.3, animations: {
+            self.view.layoutIfNeeded()
+        })
+    }
+    
     
     func showDontTipInCountryAlert(billAmount: Double, flagEmoji: String) {
         let alert = UIAlertController(title: "Total plus tip = \(billAmount)", message: "Leaving tip in \(flagEmoji) is not usual. (🚨 May not be appropriate   to leave tip)", preferredStyle: .alert)
