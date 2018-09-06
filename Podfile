@@ -8,5 +8,4 @@ target 'Smartip' do
   # Pods for Smartip
     pod 'SwiftyJSON'
     pod 'Alamofire'
-    pod 'SVProgressHUD'
 end

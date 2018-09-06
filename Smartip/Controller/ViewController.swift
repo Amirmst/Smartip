@@ -18,6 +18,7 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
     @IBOutlet weak var popUp: UIView!
     @IBOutlet weak var roundUpButton: UIButton!
     
+    @IBOutlet weak var darkLayerButton: UIButton!
     @IBOutlet weak var alertLabel: UILabel!
     @IBOutlet weak var darkLayer: UIView!
     @IBOutlet weak var clearButton: UIButton!
@@ -46,12 +47,14 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
         super.viewDidLoad()
         getLocation()
         alertLabel.isHidden = true
-        popUpBottomConst.constant = -325
+        popUpBottomConst.constant = -350
         darkLayer.isHidden = true
         popUp.layer.shadowOpacity = 1
         popUp.layer.shadowRadius = 6
         billLabel.text = "0"
         clearButton.isHidden = true
+        darkLayerButton.isHidden = true
+        darkLayerButton.isEnabled = false
         
     }
     
@@ -61,7 +64,6 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
     }
     
     @IBAction func numberPressed(_ sender: AnyObject) {
-        print(sender.tag)
         updateCurrentNumber(decimalPressed, pressedNumber: Int(sender.tag))
         updateLabel()
     }
@@ -70,6 +72,7 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
         billLabel.text = "\(Int(currentNumber))."
         decimalPressed = true
         decimalButton.isEnabled = false
+        clearButton.isHidden = false
     }
     
     @IBAction func clearButtonPressed(_ sender: Any) {
@@ -96,35 +99,52 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
     
     @IBAction func showTotalButtonPressed(_ sender: AnyObject) {
         getLocation()
-        if currentNumber == 0 {
-            let alert = UIAlertController(title: "invalid bill amount", message: "Please enter your bill amount", preferredStyle: .alert)
-            let okAction = UIAlertAction(title: "Got it", style: .default, handler: nil)
-            alert.addAction(okAction)
-            present(alert, animated: true, completion: nil)
+        if currentNumber > 9999999{
+            showOverflowAlert()
+            resetEverything()
+            updateLabel()
         } else {
-            let data = TipDataModel(currentCountry: currentCountry, enteredBillAmount: currentNumber)
-            let quality = sender.tag
-            data.getTipPercentage(quality: quality!)
-            data.getTipAmount()
-            data.getTotal()
-            let tipPercentage = Int(data.tipPercentage * 100)
-            let tipAmount = data.tipAmmout
-            tip = tipAmount
-            let total = data.total
-            tot = total
-            let alert = data.alert
-            let flagEmoji = countryCodeToFlag(country: currentCountry)
-//            showTotalAndTipAlert(total: String(total) , tip: String(tipAmount), flagEmoji: flagEmoji, message: "")
-            showPopUp(flag: flagEmoji, tipPercentage: tipPercentage,tipAmount: tipAmount, total: total, alert: alert)
-            data.clear()
+            if currentNumber == 0 {
+                let alert = UIAlertController(title: "Invalid bill amount", message: "Please enter your bill amount", preferredStyle: .alert)
+                let okAction = UIAlertAction(title: "Got it", style: .default, handler: nil)
+                alert.addAction(okAction)
+                present(alert, animated: true, completion: nil)
+            } else {
+                let data = TipDataModel(currentCountry: currentCountry, enteredBillAmount: currentNumber)
+                let quality = sender.tag
+                data.getTipPercentage(quality: quality!)
+                data.getTipAmount()
+                data.getTotal()
+                let tipPercentage = Int(data.tipPercentage * 100)
+                let tipAmount = data.tipAmmout
+                tip = tipAmount
+                let total = data.total
+                tot = total
+                let alert = data.alert
+                let flagEmoji = countryCodeToFlag(country: currentCountry)
+                showPopUp(flag: flagEmoji, tipPercentage: tipPercentage,tipAmount: tipAmount, total: total, alert: alert)
+                data.clear()
+            }
         }
     }
+    
+    @IBAction func darkLayerPressed(_ sender: Any) {
+        hidePopUp()
+        rounded = false
+    }
+    
     
     @IBAction func closePopUp(_ sender: Any) {
         hidePopUp()
         rounded = false
     }
     
+    func showOverflowAlert(){
+            let alert = UIAlertController(title: "Bill amount is too large", message: "", preferredStyle: .alert)
+            let okAction = UIAlertAction(title: "Got it", style: .default, handler: nil)
+            alert.addAction(okAction)
+            present(alert, animated: true, completion: nil)
+        }
     
     
     
@@ -152,7 +172,7 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
         placesAfterDecimal = 0
         decimalPressed = false
         decimalButton.isEnabled = true
-         clearButton.isHidden = true
+        clearButton.isHidden = true
     }
     
     //MARK: - Location Manager Functions
@@ -199,6 +219,7 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
     func updateCountryData(json: JSON) {
         if let country = json["sys"]["country"].string {
             currentCountry = country
+            print(country)
         } else {
             showConnectionIssueAlert()
         }
@@ -222,18 +243,6 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
         return String(usv)
     }
     
-//    func updateTipDataModel(updateAll: Bool) {
-//        if updateAll {
-//            tipData.billAmount = currentNumber
-//            tipData.getTipPercentage()
-//            tipData.getTipAmount()
-//            tipData.getTotal()
-//        } else {
-//            tipData.getTipAmount()
-//            tipData.getTotal()
-//        }
-//    }
-    
     func showPopUp(flag: String, tipPercentage: Int ,tipAmount: Double, total: Double, alert: Bool){
         if alert {
             alertLabel.isHidden = false
@@ -244,6 +253,8 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
         totalLabel.text = String(format: "%.2f", total)
         popUpBottomConst.constant = -20
         darkLayer.isHidden = false
+        darkLayerButton.isHidden = false
+        darkLayerButton.isEnabled = true
         UIView.animate(withDuration: 0.3, animations: {
             self.view.layoutIfNeeded()
         })
@@ -266,27 +277,16 @@ class ViewController: UIViewController, CLLocationManagerDelegate {
     }
     
     func hidePopUp(){
-        popUpBottomConst.constant = -325
+        popUpBottomConst.constant = -350
         darkLayer.isHidden = true
         alertLabel.isHidden = true
+        darkLayerButton.isHidden = true
+        darkLayerButton.isEnabled = false
+        roundUpButton.setTitle("Round total", for: .normal)
         UIView.animate(withDuration: 0.3, animations: {
             self.view.layoutIfNeeded()
         })
     }
     
-    
-    func showDontTipInCountryAlert(billAmount: Double, flagEmoji: String) {
-        let alert = UIAlertController(title: "Total plus tip = \(billAmount)", message: "Leaving tip in \(flagEmoji) is not usual. (🚨 May not be appropriate   to leave tip)", preferredStyle: .alert)
-        let okAction = UIAlertAction(title: "Got it", style: .default, handler: nil)
-        alert.addAction(okAction)
-        present(alert, animated: true, completion: nil)
-    }
-    
-    func showTotalAndTipAlert(total: String, tip: String, flagEmoji: String, message: String) {
-        let alert = UIAlertController(title: "\(flagEmoji)\nTotal plus tip = \(total)", message: "\(message) you can leave \(tip) currency for tip", preferredStyle: .alert)
-        let okAction = UIAlertAction(title: "Got it", style: .default, handler: nil)
-        alert.addAction(okAction)
-        present(alert, animated: true, completion: nil)
-    }
 }
 
